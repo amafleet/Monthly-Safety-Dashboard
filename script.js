@@ -1,49 +1,51 @@
-const DATA_FILE = "./data/safety-2025-12.json";
+// ===== Violation Details Table with Subtotals =====
+const tbody = document.getElementById("detailsBody");
+tbody.innerHTML = "";
 
-fetch(DATA_FILE)
-  .then(response => {
-    if (!response.ok) {
-      throw new Error("Failed to load JSON");
-    }
-    return response.json();
-  })
-  .then(data => {
-    console.log("Loaded records:", data.length);
-    buildDashboard(data);
-  })
-  .catch(error => {
-    console.error("Error loading JSON:", error);
-  });
+// Group records by Delivery Associate
+const groupedByDA = {};
 
-function buildDashboard(data) {
-  document.getElementById("totalEvents").textContent = data.length;
+data.forEach(row => {
+  const da = row["Delivery Associate"] || "(Unknown)";
+  if (!groupedByDA[da]) groupedByDA[da] = [];
+  groupedByDA[da].push(row);
+});
 
-  let violations = 0;
-  let nonViolations = 0;
+// Sort Delivery Associates by total violations (DESC)
+const sortedDAs = Object.keys(groupedByDA).sort((a, b) => {
+  const aCount = groupedByDA[a].filter(r => isViolation(r["Review Details"])).length;
+  const bCount = groupedByDA[b].filter(r => isViolation(r["Review Details"])).length;
+  return bCount - aCount;
+});
 
-  const tbody = document.querySelector("#dataTable tbody");
-  tbody.innerHTML = "";
+// Build table
+sortedDAs.forEach(da => {
+  let subtotal = 0;
 
-  data.forEach(item => {
-    const isViolation =
-      item["Review Details"] === "None" ||
-      item["Review Details"] === "Dispute Denied" ||
-      item["Review Details"] === "Dispute Closed";
+  groupedByDA[da].forEach(row => {
+    const review = row["Review Details"] ?? "None";
+    const violation = isViolation(review);
 
-    if (isViolation) violations++;
-    else nonViolations++;
+    if (violation) subtotal++;
 
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${item["Date"]}</td>
-      <td>${item["Delivery Associate"]}</td>
-      <td>${item["Metric Type"]}</td>
-      <td>${item["Metric Subtype"]}</td>
-      <td>${isViolation ? "Yes - Violation" : "No - Violation (Approved)"}</td>
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${row["Date"] ?? ""}</td>
+      <td>${da}</td>
+      <td>${row["Metric Type"] ?? ""}</td>
+      <td>${row["Metric Subtype"] ?? ""}</td>
+      <td>${reviewLabel(review)}</td>
     `;
-    tbody.appendChild(row);
+    tbody.appendChild(tr);
   });
 
-  document.getElementById("violations").textContent = violations;
-  document.getElementById("nonViolations").textContent = nonViolations;
-}
+  // Subtotal row (violations only)
+  const subtotalRow = document.createElement("tr");
+  subtotalRow.style.fontWeight = "bold";
+  subtotalRow.style.background = "#eef2f7";
+  subtotalRow.innerHTML = `
+    <td colspan="4">Subtotal – ${da}</td>
+    <td>${subtotal}</td>
+  `;
+  tbody.appendChild(subtotalRow);
+});
