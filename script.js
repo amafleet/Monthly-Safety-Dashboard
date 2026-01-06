@@ -1,6 +1,5 @@
 const DATA_FILE = "./data/safety-2025-12.json";
 
-
 fetch(DATA_FILE)
   .then(response => {
     if (!response.ok) {
@@ -13,7 +12,7 @@ fetch(DATA_FILE)
     buildDashboard(data);
   })
   .catch(error => {
-    console.error("Error:", error);
+    console.error("Error loading JSON:", error);
   });
 
 function buildDashboard(data) {
@@ -26,15 +25,13 @@ function buildDashboard(data) {
   tbody.innerHTML = "";
 
   data.forEach(item => {
-    // Violation logic
-    if (
+    const isViolation =
+      item["Review Details"] === "None" ||
       item["Review Details"] === "Dispute Denied" ||
-      item["Review Details"] === "None"
-    ) {
-      violations++;
-    } else {
-      nonViolations++;
-    }
+      item["Review Details"] === "Dispute Closed";
+
+    if (isViolation) violations++;
+    else nonViolations++;
 
     const row = document.createElement("tr");
     row.innerHTML = `
@@ -42,7 +39,7 @@ function buildDashboard(data) {
       <td>${item["Delivery Associate"]}</td>
       <td>${item["Metric Type"]}</td>
       <td>${item["Metric Subtype"]}</td>
-      <td>${item["Review Details"]}</td>
+      <td>${isViolation ? "Yes - Violation" : "No - Violation (Approved)"}</td>
     `;
     tbody.appendChild(row);
   });
@@ -50,5 +47,3 @@ function buildDashboard(data) {
   document.getElementById("violations").textContent = violations;
   document.getElementById("nonViolations").textContent = nonViolations;
 }
-
-
