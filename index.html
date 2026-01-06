@@ -5,268 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Monthly Safety Dashboard</title>
 
-  <!-- Plotly (CDN) -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Plotly -->
   <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f6f8fa;
-      margin: 20px;
-    }
-    h1, h2 {
-      text-align: center;
-      margin: 10px 0;
-    }
-    .summary {
-      display: flex;
-      justify-content: center;
-      gap: 24px;
-      flex-wrap: wrap;
-      margin: 16px 0 24px;
-      font-weight: bold;
-    }
-    .summary span {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 8px;
-      padding: 10px 12px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-    }
-    .chart {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      padding: 12px;
-      margin: 18px 0;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-    }
-    .error {
-      color: #b91c1c;
-      background: #fff1f2;
-      border: 1px solid #fecdd3;
-      padding: 12px;
-      border-radius: 10px;
-      max-width: 900px;
-      margin: 16px auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-      margin-top: 12px;
-    }
-    th, td {
-      border-bottom: 1px solid #eee;
-      padding: 10px;
-      font-size: 13px;
-      text-align: left;
-      vertical-align: top;
-    }
-    th {
-      background: #111827;
-      color: white;
-      font-weight: 700;
-    }
-    tr:nth-child(even) td {
-      background: #f9fafb;
-    }
-    .note {
-      text-align: center;
-      color: #6b7280;
-      margin-top: 8px;
-      font-size: 12px;
-    }
-  </style>
+  <!-- SheetJS (Excel export) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
+  <h1>📊 Monthly Safety Dashboard</h1>
+  <h2 id="fileTitle"></h2>
 
-<h1>📊 Monthly Safety Dashboard</h1>
-<h2 id="fileTitle"></h2>
+  <div id="errorBox" class="error" style="display:none;"></div>
 
-<div id="errorBox" class="error" style="display:none;"></div>
+  <div class="summary">
+    <span>Total Events: <strong id="totalEvents">0</strong></span>
+    <span>Violations: <strong id="violations">0</strong></span>
+    <span>Non-Violations: <strong id="nonViolations">0</strong></span>
+  </div>
 
-<div class="summary">
-  <span>Total Events: <strong id="totalEvents">0</strong></span>
-  <span>Violations: <strong id="violations">0</strong></span>
-  <span>Non-Violations: <strong id="nonViolations">0</strong></span>
-</div>
+  <div class="card">
+    <div id="daChart" class="chart"></div>
+  </div>
 
-<div class="chart">
-  <div id="daChart" style="width:100%; height:520px;"></div>
-</div>
+  <div class="card">
+    <div id="metricChart" class="chart"></div>
+  </div>
 
-<div class="chart">
-  <div id="metricChart" style="width:100%; height:520px;"></div>
-</div>
+  <h2>📋 Violation Details</h2>
 
-<h2>📋 Violation Details</h2>
-<table id="dataTable">
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Delivery Associate</th>
-      <th>Metric Type</th>
-      <th>Metric Subtype</th>
-      <th>Review Details</th>
-    </tr>
-  </thead>
-  <tbody id="detailsBody"></tbody>
-</table>
+  <div class="toolbar">
+    <button id="expandAllBtn" type="button">Expand All</button>
+    <button id="collapseAllBtn" type="button">Collapse All</button>
+    <button id="downloadExcelBtn" type="button">Download Excel</button>
+  </div>
 
-<div class="note">
-  Charts and counts exclude <b>Dispute Approved</b>. Violations include <b>None</b>, <b>Dispute Denied</b>, <b>Dispute Closed</b>.
-</div>
+  <table id="violationTable">
+    <thead>
+      <tr>
+        <th class="toggleCol"></th>
+        <th>Date</th>
+        <th>Delivery Associate</th>
+        <th>Metric Type</th>
+        <th>Metric Subtype</th>
+        <th>Review Details</th>
+      </tr>
+    </thead>
 
-<script>
-/* =========================
-   CONFIG — update this monthly
-========================= */
-const DATA_FILE = "./data/safety-2025-12.json"; // <-- your December file
+    <tbody id="detailsBody"></tbody>
+    <tfoot id="grandTotalFoot"></tfoot>
+  </table>
 
-/* =========================
-   Violation rules
-========================= */
-function isViolation(review) {
-  return review === "None" || review === "Dispute Denied" || review === "Dispute Closed";
-}
-function reviewLabel(review) {
-  if (review === "Dispute Approved") return "No - Violation (Dispute Approved)";
-  return "Yes - Violation";
-}
+  <p class="note">
+    Charts and totals exclude <b>Dispute Approved</b>. Violations include <b>None</b>, <b>Dispute Denied</b>, <b>Dispute Closed</b>.
+  </p>
 
-/* =========================
-   Load JSON and build dashboard
-========================= */
-const fileNameOnly = DATA_FILE.split("/").pop();
-document.getElementById("fileTitle").textContent = `Data Source: ${fileNameOnly}`;
-
-fetch(DATA_FILE)
-  .then(res => {
-    if (!res.ok) throw new Error(`HTTP ${res.status} when loading ${DATA_FILE}`);
-    return res.json();
-  })
-  .then(data => {
-    if (!Array.isArray(data)) data = [data];
-    buildDashboard(data, fileNameOnly);
-  })
-  .catch(err => {
-    const box = document.getElementById("errorBox");
-    box.style.display = "block";
-    box.innerHTML = `
-      <b>Dashboard could not load the JSON file.</b><br><br>
-      Tried to load: <code>${DATA_FILE}</code><br>
-      Error: <code>${err.message}</code><br><br>
-      <b>Fix checklist:</b>
-      <ul>
-        <li>Confirm the JSON exists at: <code>${location.origin}${location.pathname.replace(/index\\.html$/, "")}data/${fileNameOnly}</code></li>
-        <li>Folder must be named exactly <code>data</code> (lowercase)</li>
-        <li>Filename must match exactly <code>${fileNameOnly}</code></li>
-      </ul>
-    `;
-    console.error(err);
-  });
-
-/* =========================
-   Build dashboard
-========================= */
-function buildDashboard(data, fileLabel) {
-  // Summary counts
-  let violations = 0;
-  let nonViolations = 0;
-
-  // Aggregations (violations only)
-  const daCounts = {};
-  const metricCounts = {};
-
-  // Table rows (show all rows, but label)
-  const tbody = document.getElementById("detailsBody");
-  tbody.innerHTML = "";
-
-  data.forEach(row => {
-    const review = row["Review Details"] ?? "None";
-    const violation = isViolation(review);
-
-    if (violation) violations++;
-    else nonViolations++;
-
-    // charts count ONLY violations
-    if (violation) {
-      const da = row["Delivery Associate"] || "(Unknown)";
-      const mt = row["Metric Type"] || "(Unknown)";
-
-      daCounts[da] = (daCounts[da] || 0) + 1;
-      metricCounts[mt] = (metricCounts[mt] || 0) + 1;
-    }
-
-    // Table row (show everything, including Dispute Approved, labeled)
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row["Date"] ?? ""}</td>
-      <td>${row["Delivery Associate"] ?? ""}</td>
-      <td>${row["Metric Type"] ?? ""}</td>
-      <td>${row["Metric Subtype"] ?? ""}</td>
-      <td>${reviewLabel(review)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  document.getElementById("totalEvents").textContent = data.length;
-  document.getElementById("violations").textContent = violations;
-  document.getElementById("nonViolations").textContent = nonViolations;
-
-  // Build charts
-  buildDAChart(daCounts, fileLabel);
-  buildMetricChart(metricCounts, fileLabel);
-}
-
-function buildDAChart(counts, fileLabel) {
-  // Sort A–Z as requested (names readable)
-  const names = Object.keys(counts).sort((a, b) => a.localeCompare(b));
-  const values = names.map(n => counts[n]);
-
-  Plotly.newPlot("daChart", [{
-    x: names,
-    y: values,
-    type: "bar"
-  }], {
-    title: `Violation Count per Delivery Associate – ${fileLabel}`,
-    xaxis: {
-      tickangle: -45,
-      tickfont: { size: 10 },
-      automargin: true
-    },
-    yaxis: { title: "Violations" },
-    margin: { t: 60, l: 60, r: 20, b: 160 }
-  }, { responsive: true });
-}
-
-function buildMetricChart(counts, fileLabel) {
-  // Sort A–Z as requested
-  const metrics = Object.keys(counts).sort((a, b) => a.localeCompare(b));
-  const values = metrics.map(m => counts[m]);
-
-  Plotly.newPlot("metricChart", [{
-    x: metrics,
-    y: values,
-    type: "bar"
-  }], {
-    title: `Violation Count per Metric Type – ${fileLabel}`,
-    xaxis: {
-      tickangle: -30,
-      tickfont: { size: 11 },
-      automargin: true
-    },
-    yaxis: { title: "Violations" },
-    margin: { t: 60, l: 60, r: 20, b: 130 }
-  }, { responsive: true });
-}
-</script>
-
+  <script src="script.js"></script>
 </body>
 </html>
