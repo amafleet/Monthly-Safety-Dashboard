@@ -6,6 +6,7 @@ const FILES = [
   "safety-2025-10.json",
   "safety-2025-11.json",
   "safety-2025-12.json"
+   ];
   // Add later:
   // "safety-2026-01.json"
    // "safety-2026-02.json"
@@ -21,7 +22,7 @@ const FILES = [
    // "safety-2026-12.json"
    // "safety-2027-01.json"
    // "safety-2027-02.json"   
-];
+
 
 /* =========================
    Helpers: Parse filename -> {year, month}
@@ -340,3 +341,4 @@ function hideError() {
   box.style.display = "none";
   box.innerHTML = "";
 }
+
