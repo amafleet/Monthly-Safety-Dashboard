@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Monthly Safety Dashboard</title>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <h1>Monthly Safety Dashboard</h1>
+
+  <div id="summary">
+    <p>Total Events: <span id="totalEvents">0</span></p>
+    <p>Violations: <span id="violations">0</span></p>
+    <p>Non-Violations: <span id="nonViolations">0</span></p>
+  </div>
+
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Delivery Associate</th>
+        <th>Metric Type</th>
+        <th>Metric Subtype</th>
+        <th>Review Details</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- JS (must be last) -->
+  <script src="script.js"></script>
+</body>
+</html>
