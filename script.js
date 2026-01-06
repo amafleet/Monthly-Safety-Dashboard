@@ -1,4 +1,5 @@
-const DATA_FILE = "data/safety-2025-12.json";
+const DATA_FILE = "./data/safety-2025-12.json";
+
 
 fetch(DATA_FILE)
   .then(response => {
@@ -49,4 +50,5 @@ function buildDashboard(data) {
   document.getElementById("violations").textContent = violations;
   document.getElementById("nonViolations").textContent = nonViolations;
 }
+
 
