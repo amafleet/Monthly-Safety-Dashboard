@@ -1,7 +1,59 @@
 /* =========================
-   CONFIG — update monthly
+   1) LIST YOUR FILES HERE (only filenames)
+   Upload these into /data/
 ========================= */
-const DATA_FILE = "./data/safety-2025-12.json";
+const FILES = [
+  "safety-2025-10.json",
+  "safety-2025-11.json",
+  "safety-2025-12.json"
+  // Add later:
+  // "safety-2026-01.json"
+   // "safety-2026-02.json"
+   // "safety-2026-03.json"
+   // "safety-2026-04.json"
+   // "safety-2026-05.json"
+   // "safety-2026-06.json"
+   // "safety-2026-07.json"
+   // "safety-2026-08.json"
+   // "safety-2026-09.json"
+   // "safety-2026-10.json"
+   // "safety-2026-11.json"
+   // "safety-2026-12.json"
+   // "safety-2027-01.json"
+   // "safety-2027-02.json"   
+];
+
+/* =========================
+   Helpers: Parse filename -> {year, month}
+   Expected format: safety-YYYY-MM.json
+========================= */
+function parseYearMonth(file) {
+  const match = file.match(/safety-(\d{4})-(\d{1,2})\.json$/i);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]); // 1-12
+  if (!year || month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+function monthLabel(year, month) {
+  const date = new Date(year, month - 1, 1);
+  return date.toLocaleString("default", { month: "long", year: "numeric" });
+}
+
+/* =========================
+   Build datasets array from FILES, auto-sort by date
+========================= */
+const DATASETS = FILES
+  .map(file => {
+    const ym = parseYearMonth(file);
+    if (!ym) {
+      return { file, label: file, sortKey: Number.POSITIVE_INFINITY };
+    }
+    const sortKey = ym.year * 100 + ym.month; // e.g., 202512
+    return { file, label: monthLabel(ym.year, ym.month), sortKey };
+  })
+  .sort((a, b) => a.sortKey - b.sortKey);
 
 /* =========================
    Violation rules
@@ -16,37 +68,60 @@ function reviewLabel(review) {
 }
 
 /* =========================
-   Load JSON and build
+   Dropdown setup
 ========================= */
-const fileNameOnly = DATA_FILE.split("/").pop();
-document.getElementById("fileTitle").textContent = `Data Source: ${fileNameOnly}`;
+const monthSelect = document.getElementById("monthSelect");
 
-fetch(DATA_FILE)
-  .then(res => {
-    if (!res.ok) throw new Error(`HTTP ${res.status} when loading ${DATA_FILE}`);
-    return res.json();
-  })
-  .then(data => {
-    if (!Array.isArray(data)) data = [data];
-    buildSummaryAndCharts(data, fileNameOnly);
-    buildViolationTable(data); // includes subtotals, grand total, toggles, export
-  })
-  .catch(err => {
-    const box = document.getElementById("errorBox");
-    box.style.display = "block";
-    box.innerHTML = `
-      <b>Dashboard could not load the JSON file.</b><br><br>
-      Tried to load: <code>${DATA_FILE}</code><br>
-      Error: <code>${err.message}</code><br><br>
-      <b>Fix checklist:</b>
-      <ul>
-        <li>Confirm the JSON exists at: <code>.../data/${fileNameOnly}</code></li>
-        <li>Folder must be named exactly <code>data</code> (lowercase)</li>
-        <li>Filename must match exactly <code>${fileNameOnly}</code></li>
-      </ul>
-    `;
-    console.error(err);
+function populateDropdown() {
+  monthSelect.innerHTML = "";
+  DATASETS.forEach(ds => {
+    const opt = document.createElement("option");
+    opt.value = ds.file;        // filename
+    opt.textContent = ds.label; // pretty label
+    monthSelect.appendChild(opt);
   });
+}
+
+populateDropdown();
+
+// Default to latest month (last after sort)
+monthSelect.value = DATASETS[DATASETS.length - 1].file;
+
+// Load initial
+loadMonth(monthSelect.value);
+
+// Change handler
+monthSelect.addEventListener("change", () => loadMonth(monthSelect.value));
+
+/* =========================
+   Load Month
+========================= */
+function loadMonth(fileName) {
+  const DATA_FILE = `./data/${fileName}`;
+
+  const ds = DATASETS.find(d => d.file === fileName);
+  const label = ds ? ds.label : fileName;
+
+  document.getElementById("fileTitle").textContent =
+    `Data Source: ${label} (${fileName})`;
+
+  hideError();
+
+  fetch(DATA_FILE)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status} when loading ${DATA_FILE}`);
+      return res.json();
+    })
+    .then(data => {
+      if (!Array.isArray(data)) data = [data];
+      buildSummaryAndCharts(data, fileName);
+      buildViolationTable(data);
+    })
+    .catch(err => {
+      showError(DATA_FILE, err);
+      console.error(err);
+    });
+}
 
 /* =========================
    Summary + Charts
@@ -91,11 +166,7 @@ function buildDAChart(counts, fileLabel) {
     type: "bar"
   }], {
     title: `Violation Count per Delivery Associate – ${fileLabel}`,
-    xaxis: {
-      tickangle: -45,
-      tickfont: { size: 10 },
-      automargin: true
-    },
+    xaxis: { tickangle: -45, tickfont: { size: 10 }, automargin: true },
     yaxis: { title: "Violations" },
     margin: { t: 60, l: 60, r: 20, b: 160 }
   }, { responsive: true });
@@ -111,11 +182,7 @@ function buildMetricChart(counts, fileLabel) {
     type: "bar"
   }], {
     title: `Violation Count per Metric Type – ${fileLabel}`,
-    xaxis: {
-      tickangle: -30,
-      tickfont: { size: 11 },
-      automargin: true
-    },
+    xaxis: { tickangle: -30, tickfont: { size: 11 }, automargin: true },
     yaxis: { title: "Violations" },
     margin: { t: 60, l: 60, r: 20, b: 130 }
   }, { responsive: true });
@@ -123,7 +190,7 @@ function buildMetricChart(counts, fileLabel) {
 
 /* =========================
    Violation Details Table:
-   - grouped by DA
+   - group by DA
    - subtotal per DA (violations only)
    - grand total row
    - collapse/expand
@@ -135,14 +202,12 @@ function buildViolationTable(data) {
   tbody.innerHTML = "";
   tfoot.innerHTML = "";
 
-  // Group rows by Delivery Associate
   const grouped = {};
   data.forEach(row => {
     const da = row["Delivery Associate"] || "(Unknown)";
     (grouped[da] ||= []).push(row);
   });
 
-  // Sort Delivery Associates by total violations (DESC)
   const sortedDAs = Object.keys(grouped).sort((a, b) => {
     const av = grouped[a].filter(r => isViolation((r["Review Details"] ?? "None"))).length;
     const bv = grouped[b].filter(r => isViolation((r["Review Details"] ?? "None"))).length;
@@ -162,7 +227,6 @@ function buildViolationTable(data) {
 
     grandTotal += subtotal;
 
-    // Header row (toggle)
     const headerTr = document.createElement("tr");
     headerTr.className = "group-header";
     headerTr.innerHTML = `
@@ -171,7 +235,6 @@ function buildViolationTable(data) {
     `;
     tbody.appendChild(headerTr);
 
-    // Detail rows (show ALL rows; label yes/no)
     rows.forEach(r => {
       const review = r["Review Details"] ?? "None";
       const tr = document.createElement("tr");
@@ -187,7 +250,6 @@ function buildViolationTable(data) {
       tbody.appendChild(tr);
     });
 
-    // Subtotal row
     const subtotalTr = document.createElement("tr");
     subtotalTr.className = `subtotal group-row ${groupId}`;
     subtotalTr.innerHTML = `
@@ -198,7 +260,6 @@ function buildViolationTable(data) {
     tbody.appendChild(subtotalTr);
   });
 
-  // Grand total footer
   const gt = document.createElement("tr");
   gt.innerHTML = `
     <td colspan="5">GRAND TOTAL (Yes - Violation only)</td>
@@ -214,13 +275,15 @@ function buildViolationTable(data) {
 function wireUpToggles() {
   const tbody = document.getElementById("detailsBody");
 
-  // Click toggle (▼ / ▶) to collapse/expand a group
-  tbody.addEventListener("click", (e) => {
+  const newTbody = tbody.cloneNode(true);
+  tbody.parentNode.replaceChild(newTbody, tbody);
+
+  newTbody.addEventListener("click", (e) => {
     const toggleCell = e.target.closest(".toggle");
     if (!toggleCell) return;
 
     const groupId = toggleCell.dataset.groupId;
-    const rows = tbody.querySelectorAll(`.group-row.${groupId}`);
+    const rows = newTbody.querySelectorAll(`.group-row.${groupId}`);
 
     const allHidden = Array.from(rows).every(r => r.classList.contains("hidden-row"));
     rows.forEach(r => r.classList.toggle("hidden-row", !allHidden));
@@ -247,9 +310,33 @@ function wireUpExpandCollapseAll() {
 
 function wireUpExcelExport() {
   document.getElementById("downloadExcelBtn").onclick = () => {
-    // Tip: If you want ALL rows in export, click Expand All first.
     const table = document.getElementById("violationTable");
     const wb = XLSX.utils.table_to_book(table, { sheet: "Violations" });
     XLSX.writeFile(wb, "Monthly_Safety_Violations.xlsx");
   };
+}
+
+/* =========================
+   Error helpers
+========================= */
+function showError(dataFile, err) {
+  const box = document.getElementById("errorBox");
+  box.style.display = "block";
+  box.innerHTML = `
+    <b>Dashboard could not load the JSON file.</b><br><br>
+    Tried to load: <code>${dataFile}</code><br>
+    Error: <code>${err.message}</code><br><br>
+    <b>Fix checklist:</b>
+    <ul>
+      <li>Confirm the JSON exists inside <code>/data/</code></li>
+      <li>Folder must be named exactly <code>data</code> (lowercase)</li>
+      <li>File name must match exactly (case-sensitive)</li>
+    </ul>
+  `;
+}
+
+function hideError() {
+  const box = document.getElementById("errorBox");
+  box.style.display = "none";
+  box.innerHTML = "";
 }
