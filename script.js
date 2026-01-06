@@ -6,23 +6,9 @@ const FILES = [
   "safety-2025-10.json",
   "safety-2025-11.json",
   "safety-2025-12.json"
-   ];
   // Add later:
   // "safety-2026-01.json"
-   // "safety-2026-02.json"
-   // "safety-2026-03.json"
-   // "safety-2026-04.json"
-   // "safety-2026-05.json"
-   // "safety-2026-06.json"
-   // "safety-2026-07.json"
-   // "safety-2026-08.json"
-   // "safety-2026-09.json"
-   // "safety-2026-10.json"
-   // "safety-2026-11.json"
-   // "safety-2026-12.json"
-   // "safety-2027-01.json"
-   // "safety-2027-02.json"   
-
+];
 
 /* =========================
    Helpers: Parse filename -> {year, month}
@@ -77,8 +63,8 @@ function populateDropdown() {
   monthSelect.innerHTML = "";
   DATASETS.forEach(ds => {
     const opt = document.createElement("option");
-    opt.value = ds.file;        // filename
-    opt.textContent = ds.label; // pretty label
+    opt.value = ds.file;
+    opt.textContent = ds.label; // pretty label (October 2025, etc.)
     monthSelect.appendChild(opt);
   });
 }
@@ -88,7 +74,7 @@ populateDropdown();
 // Default to latest month (last after sort)
 monthSelect.value = DATASETS[DATASETS.length - 1].file;
 
-// Load initial
+// Initial load
 loadMonth(monthSelect.value);
 
 // Change handler
@@ -276,6 +262,7 @@ function buildViolationTable(data) {
 function wireUpToggles() {
   const tbody = document.getElementById("detailsBody");
 
+  // Prevent multiple listeners stacking by cloning node
   const newTbody = tbody.cloneNode(true);
   tbody.parentNode.replaceChild(newTbody, tbody);
 
@@ -341,4 +328,3 @@ function hideError() {
   box.style.display = "none";
   box.innerHTML = "";
 }
-
